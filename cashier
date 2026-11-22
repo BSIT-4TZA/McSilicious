@@ -1,0 +1,131 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+
+static string[] foodNames = { "fries", "Meal 1", "Meal 2", "Happy Meal", "Cheese Burger" };
+static double[] foodPrices = { 59, 192, 200, 235, 89 };
+const string FilePath = "records/orders.txt";
+static string GetNextId()
+{
+    int highest = 0;
+    if (File.Exists(FilePath))
+    {
+        foreach (string line in File.ReadAllLines(FilePath))
+        {
+            string[] parts = line.Split('|');
+            if (parts[0].Length > 3 && int.TryParse(parts[0].Substring(3), out int number))
+            {
+                if (number > highest) highest = number;
+            }
+        }
+    }
+    return "ORD" + (highest + 1).ToString("D3");
+}
+static bool SaveOrder(string id, int[] quantities, double total, double cash, double change)
+{
+    try
+    {
+        Directory.CreateDirectory("records");
+        List<string> lines = new List<string>();
+        for (int i = 0; i < quantities.Length; i++)
+        {
+            if (quantities[i] > 0)
+            {
+                double subtotal = quantities[i] * foodPrices[i];
+                lines.Add(id + "|PAID|" + foodNames[i] + "|" + foodPrices[i].ToString("F2") + "|" +
+                          quantities[i] + "|" + subtotal.ToString("F2") + "|" +
+                          total.ToString("F2") + "|" + cash.ToString("F2") + "|" + change.ToString("F2"));
+            }
+        }
+        File.AppendAllLines(FilePath, lines);
+        return true;
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("Save error: " + ex.Message);
+        return false;
+    }
+}
+static void CashierView()
+{
+    bool inCashier = true;
+    while (inCashier)
+    {
+        Console.WriteLine("\n======= Cashier =======");
+        Console.WriteLine("[1] Find Order");
+        Console.WriteLine("[2] Sales Report");
+        Console.WriteLine("[3] Back");
+        Console.Write("Enter Choice: ");
+        string choice = Console.ReadLine().Trim();
+
+        if (choice == "1") FindOrder();
+        else if (choice == "2") ShowSales();
+        else if (choice == "3") inCashier = false;
+        else Console.WriteLine("Invalid choice. Enter 1, 2, or 3.");
+    }
+}
+static void FindOrder()
+{
+    string id = "";
+    while (id == "")
+    {
+        Console.Write("Enter Order ID: ");
+        id = Console.ReadLine().Trim().ToUpper();
+        if (id == "") Console.WriteLine("Order ID cannot be blank. Please enter an ID.");
+    }
+
+    if (!File.Exists(FilePath))
+    {
+        Console.WriteLine("Order not found.");
+        return;
+    }
+    bool found = false;
+    string[] last = null;
+
+    foreach (string line in File.ReadAllLines(FilePath))
+    {
+        string[] p = line.Split('|');
+        if (p.Length == 9 && p[0] == id && p[1] == "PAID")
+        {
+            if (!found) Console.WriteLine("\n--- RECEIPT " + p[0] + " (" + p[1] + ") ---");
+            found = true;
+            Console.WriteLine(p[2] + "   PHP " + p[3] + " x " + p[4] + " = PHP " + p[5]);
+            last = p;
+        }
+    }
+    if (!found)
+    {
+        Console.WriteLine("Order not found.");
+        return;
+    }
+
+    Console.WriteLine("Total: PHP " + last[6]);
+    Console.WriteLine("Cash: PHP " + last[7]);
+    Console.WriteLine("Change: PHP " + last[8]);
+}
+static void ShowSales()
+{
+    int orderCount = 0;
+    double totalSales = 0;
+    List<string> counted = new List<string>();
+
+    if (File.Exists(FilePath))
+    {
+        foreach (string line in File.ReadAllLines(FilePath))
+        {
+            string[] p = line.Split('|');
+            if (p.Length != 9 || p[1] != "PAID" || counted.Contains(p[0])) continue;
+
+            if (double.TryParse(p[6], out double orderTotal))
+            {
+                counted.Add(p[0]);
+                orderCount++;
+                totalSales += orderTotal;
+            }
+        }
+    }
+    Console.WriteLine("\n--- SALES REPORT ---");
+    Console.WriteLine("Orders: " + orderCount);
+    Console.WriteLine("Total sales: PHP " + totalSales.ToString("F2"));
+    if (orderCount == 0) Console.WriteLine("No sales yet");
+}
